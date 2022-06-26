@@ -10,17 +10,25 @@ use std::iter;
 
 use super::{EndpointSecretOut, EndpointSecretRotateIn};
 use crate::{
+    cfg::{Configuration, DefaultSignatureType},
     core::{
         security::AuthenticatedApplication,
         types::{
-            ApplicationIdOrUid, EndpointIdOrUid, EndpointSecret, ExpiringSigningKey,
-            ExpiringSigningKeys,
+            ApplicationIdOrUid, EndpointIdOrUid, EndpointSecret, EndpointSecretInternal,
+            ExpiringSigningKey, ExpiringSigningKeys,
         },
     },
     db::models::endpoint,
     error::{HttpError, Result},
     v1::utils::{EmptyResponse, ValidatedJson},
 };
+
+pub(super) fn generate_secret(sig_type: &DefaultSignatureType) -> Result<EndpointSecret> {
+    match sig_type {
+        DefaultSignatureType::Hmac256 => EndpointSecret::generate_symmetric(),
+        DefaultSignatureType::Ed25519 => EndpointSecret::generate_asymmetric(),
+    }
+}
 
 pub(super) async fn get_endpoint_secret(
     Extension(ref db): Extension<DatabaseConnection>,
@@ -39,6 +47,7 @@ pub(super) async fn get_endpoint_secret(
 
 pub(super) async fn rotate_endpoint_secret(
     Extension(ref db): Extension<DatabaseConnection>,
+    Extension(cfg): Extension<Configuration>,
     Path((_app_id, endp_id)): Path<(ApplicationIdOrUid, EndpointIdOrUid)>,
     ValidatedJson(data): ValidatedJson<EndpointSecretRotateIn>,
     AuthenticatedApplication {
@@ -53,7 +62,7 @@ pub(super) async fn rotate_endpoint_secret(
 
     let now = Utc::now();
     let last_key = ExpiringSigningKey {
-        key: endp.key.clone(),
+        key: EndpointSecretInternal(endp.key.clone()),
         expiration: now + Duration::hours(ExpiringSigningKeys::OLD_KEY_EXPIRY_HOURS),
     };
 
@@ -77,7 +86,7 @@ pub(super) async fn rotate_endpoint_secret(
         key: Set(if let Some(key) = data.key {
             key
         } else {
-            EndpointSecret::generate()?
+            generate_secret(&cfg.default_signature_type)?
         }),
 
         old_keys: Set(Some(ExpiringSigningKeys(
