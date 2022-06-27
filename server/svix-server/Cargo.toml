@@ -43,7 +43,7 @@ chrono = { version="0.4.19", features = ["serde"] }
 reqwest = { version = "0.11.9", features = ["json", "rustls-tls", "trust-dns"], default-features = false }
 bb8 = "0.7.1"
 bb8-redis = "0.10.1"
-redis = { version = "0.21.5", features = ["tokio-comp", "streams"] }
+redis = { version = "0.21.5", features = ["streams", "tokio-native-tls-comp"] }
 thiserror = "1.0.30"
 bytes = "1.1.0"
 blake2 = "0.10.4"
@@ -58,3 +58,6 @@ url = "2.2.2"
 
 [dev-dependencies]
 anyhow = "1.0.56"
+
+[build-dependencies]
+pkg-config = "0.3.9"
